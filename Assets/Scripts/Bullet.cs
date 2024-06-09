@@ -1,64 +1,54 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Bullet : MonoBehaviour
-{
-    Rigidbody rb;
-    [SerializeField] GameObject explosionPrefab;
+public class Bullet : MonoBehaviour {
+    [SerializeField]
+    float damage;
+    [SerializeField]
+    float lifetime;
+    [SerializeField]
+    float speed;
+    [SerializeField]
+    LayerMask collisionMask;
+    [SerializeField]
+    float width;
 
-    private ParticleSystem particlesExplosion;
-    private ParticleSystem particlesSmoke;
-    private Transform objectBullet;
-    private GameObject missileBreak;
-    private bool explosionActive = false;
+    Plane owner;
+    new Rigidbody rigidbody;
+    Vector3 lastPosition;
+    float startTime;
 
-    public float bulletForce = 190000f;
-    public Vector3 bulletDirection = Vector3.forward; // Direção padrão: para frente
+    public void Fire(Plane owner) {
+        this.owner = owner;
+        rigidbody = GetComponent<Rigidbody>();
+        startTime = Time.time;
 
-    private void Awake(){
-        rb = GetComponent<Rigidbody>();
+        rigidbody.AddRelativeForce(new Vector3(0, 0, speed), ForceMode.VelocityChange);
+        rigidbody.AddForce(owner.Rigidbody.velocity, ForceMode.VelocityChange);
+        lastPosition = rigidbody.position;
     }
 
-    void Start(){
-        particlesSmoke = transform.Find("Smoke").gameObject.GetComponent<ParticleSystem>();
+    void FixedUpdate() {
+        if (Time.time > startTime + lifetime) {
+            Destroy(gameObject);
+            return;
+        }
 
-        objectBullet = transform.Find("ObjectMissile");
+        var diff = rigidbody.position - lastPosition;
+        lastPosition = rigidbody.position;
 
-        missileBreak = transform.Find("break_missile").gameObject;
+        Ray ray = new Ray(lastPosition, diff.normalized);
+        RaycastHit hit;
 
-        rb.AddForce(bulletDirection.normalized * bulletForce, ForceMode.Impulse);
-        var accumulatedForce = rb.GetAccumulatedForce();
-    }
+        if (Physics.SphereCast(ray, width, out hit, diff.magnitude, collisionMask.value)) {
+            Plane other = hit.collider.GetComponent<Plane>();
 
-    void FixedUpdate(){
+            if (other != null && other != owner) {
+                other.ApplyDamage(damage);
+            }
 
-    }
-
-    void Update(){    
-        if(explosionActive && particlesExplosion == null && !particlesSmoke.isPlaying){
             Destroy(gameObject);
         }
     }
-
-    void startExplosion(){
-        GameObject explosion = Instantiate(explosionPrefab, transform.position, transform.rotation);
-        particlesExplosion = explosion.GetComponent<ParticleSystem>();
-        explosionActive = true;
-    }
-
-    void monityParticlesExplosion(){
-    }
-
-    void OnCollisionEnter(Collision collision){
-
-        if (collision.gameObject.name == "Terrain"){
-            rb.isKinematic = true;
-            startExplosion();
-            particlesSmoke.Stop();
-            objectBullet.gameObject.SetActive(false);
-            missileBreak.SetActive(true);
-        }
-    }
-
 }
